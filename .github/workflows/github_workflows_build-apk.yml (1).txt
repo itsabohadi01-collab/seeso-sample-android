@@ -1,0 +1,50 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Set up Android SDK (via android-emulator-runner)
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 31
+        target: default
+        arch: x86_64
+        force-avd-creation: false
+
+    - name: Insert SeeSo license key into source
+      run: |
+        FILE=app/src/main/java/visual/camp/sample/app/GazeTrackerManager.java
+        echo "Checking for $FILE"
+        if [ -f "$FILE" ]; then
+          # Replace the placeholder license string with the provided license key
+          sed -i 's/String SEESO_LICENSE_KEY = \".*\";/String SEESO_LICENSE_KEY = "dev_ivjfwnp5arokd7no9ics851g15xc1rdiom1zx5nq";/' "$FILE"
+          echo "Inserted license key into $FILE"
+        else
+          echo "$FILE not found"
+          exit 1
+        fi
+
+    - name: Build APK (debug if release signing not configured)
+      # If your project lacks release signing config, change assembleRelease -> assembleDebug
+      run: ./gradlew assembleRelease --no-daemon
+
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-release-apk
+        path: app/build/outputs/apk/**/release/*.apk
